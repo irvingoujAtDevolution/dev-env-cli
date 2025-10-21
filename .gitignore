@@ -1,0 +1,38 @@
+# Local development environment configuration
+.dev_env.json
+
+# Test artifacts
+test/*/.dev_env.json
+test/*/output/
+
+# PowerShell module cache
+*.psm1.cache
+
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# NuGet packages
+*.nupkg
+*.snupkg
+
+# IDE and editor files
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

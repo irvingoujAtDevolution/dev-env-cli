@@ -1,0 +1,1 @@
+ls C:\Users\jou\Desktop\scripts\bin

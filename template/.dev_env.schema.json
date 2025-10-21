@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/dev-env.schema.json",
+  "title": "Development Environment Configuration",
+  "description": "Configuration schema for .dev_env.json files used by PowerShell development toolkit",
+  "type": "object",
+  "properties": {
+    "quick_command": {
+      "type": "object",
+      "description": "Named quick commands for execution via run.ps1",
+      "patternProperties": {
+        "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Simple command string to execute"
+            },
+            {
+              "type": "object",
+              "description": "Advanced command configuration",
+              "properties": {
+                "cwd": {
+                  "type": "string",
+                  "description": "Working directory for command execution (empty string uses parent directory)"
+                },
+                "command": {
+                  "type": "string",
+                  "description": "Executable or command to run",
+                  "minLength": 1
+                },
+                "args": {
+                  "type": "array",
+                  "description": "Array of command arguments",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "env": {
+                  "type": "array",
+                  "description": "Environment variables to set for this command",
+                  "items": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^[A-Z_][A-Z0-9_]*$": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "default": []
+                },
+                "require": {
+                  "type": "array",
+                  "description": "Prerequisite commands to run in separate processes",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              },
+              "required": ["command"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "private_key_file": {
+      "type": "string",
+      "description": "Path to private key file for gateway token generation",
+      "examples": [
+        "C:\\ProgramData\\Devolutions\\Gateway\\provisioner.key",
+        "/etc/devolutions-gateway/provisioner.key"
+      ]
+    },
+    "gateway_websocket_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "WebSocket URL for gateway connections",
+      "pattern": "^wss?://",
+      "examples": [
+        "ws://localhost:7171",
+        "wss://gateway.example.com:7171"
+      ]
+    },
+    "ssh_destination_host": {
+      "type": "string",
+      "description": "SSH destination host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:22", "server.example.com:22"]
+    },
+    "telnet_destination_host": {
+      "type": "string",
+      "description": "Telnet destination host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:23", "server.example.com:23"]
+    },
+    "ldap_destination_host": {
+      "type": "string",
+      "description": "LDAP destination host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:389", "ldap.example.com:389"]
+    },
+    "ldaps_destination_host": {
+      "type": "string",
+      "description": "LDAPS destination host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:636", "ldap.example.com:636"]
+    },
+    "rdp_destination_host": {
+      "type": "string",
+      "description": "RDP destination host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:3389", "server.example.com:3389"]
+    },
+    "winrm_destination_host": {
+      "type": "string",
+      "description": "WinRM destination host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:5985", "server.example.com:5985"]
+    },
+    "krb_realm": {
+      "type": "string",
+      "description": "Kerberos realm name",
+      "pattern": "^[A-Z][A-Z0-9.-]*[A-Z0-9]$",
+      "examples": ["EXAMPLE.COM", "CORP.COMPANY.COM"]
+    },
+    "krb_kdc": {
+      "type": "string",
+      "description": "Kerberos Key Distribution Center host and port",
+      "pattern": "^[^:]+:\\d+$",
+      "examples": ["primary:88", "kdc.example.com:88"]
+    },
+    "target": {
+      "type": "string",
+      "description": "Default target protocol for token generation",
+      "enum": ["ssh", "telnet", "rdp", "ldap", "ldaps", "winrm-http-pwsh"],
+      "default": "ssh"
+    },
+    "temp_env": {
+      "type": "object",
+      "description": "Temporary environment variables for set_env.ps1",
+      "patternProperties": {
+        "^[A-Z_][A-Z0-9_]*$": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "patternProperties": {
+    "^temp_env_\\d+$": {
+      "type": "object",
+      "description": "Numbered temporary environment variable sets for set_env.ps1",
+      "patternProperties": {
+        "^[A-Z_][A-Z0-9_]*$": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true,
+  "examples": [
+    {
+      "quick_command": {
+        "hello": "echo 'Hello World'",
+        "build": {
+          "cwd": "",
+          "command": "dotnet",
+          "args": ["build", "-c", "Release"],
+          "env": []
+        },
+        "test": {
+          "cwd": "./tests",
+          "command": "npm",
+          "args": ["test"],
+          "env": [
+            {"NODE_ENV": "test"}
+          ]
+        }
+      },
+      "private_key_file": "C:\\ProgramData\\Devolutions\\Gateway\\provisioner.key",
+      "gateway_websocket_url": "ws://localhost:7171",
+      "ssh_destination_host": "primary:22",
+      "telnet_destination_host": "primary:23",
+      "ldap_destination_host": "primary:389",
+      "ldaps_destination_host": "primary:636",
+      "rdp_destination_host": "primary:3389",
+      "winrm_destination_host": "primary:5985",
+      "krb_realm": "EXAMPLE.COM",
+      "krb_kdc": "primary:88",
+      "target": "ssh",
+      "temp_env": {
+        "API_KEY": "your-api-key-here",
+        "DEBUG_MODE": "true"
+      },
+      "temp_env_1": {
+        "DATABASE_URL": "postgresql://localhost:5432/testdb"
+      }
+    }
+  ]
+}
