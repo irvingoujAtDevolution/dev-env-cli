@@ -5,13 +5,13 @@ param (
 
 # Display help if no parameters provided
 if (-not $Profile -or -not $Assignment) {
-    Write-Host "Usage: env_add.ps1 [PROFILE] [NAME]=[VALUE]"
+    Write-Host "Usage: add_env.ps1 [PROFILE] [NAME]=[VALUE]"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  .\env_add.ps1 temp_env API_KEY=my-secret-key"
-    Write-Host "  .\env_add.ps1 temp_env_1 DATABASE_URL=postgresql://localhost:5432/db"
-    Write-Host "  .\env_add.ps1 0 DEBUG_MODE=true        # 0 is shorthand for temp_env"
-    Write-Host "  .\env_add.ps1 1 DEBUG_MODE=true        # 1 is shorthand for temp_env_1"
+    Write-Host "  .\add_env.ps1 temp_env API_KEY=my-secret-key"
+    Write-Host "  .\add_env.ps1 temp_env_1 DATABASE_URL=postgresql://localhost:5432/db"
+    Write-Host "  .\add_env.ps1 0 DEBUG_MODE=true        # 0 is shorthand for temp_env"
+    Write-Host "  .\add_env.ps1 1 DEBUG_MODE=true        # 1 is shorthand for temp_env_1"
     Write-Host ""
     Write-Host "Available profiles: temp_env, temp_env_1, temp_env_2, etc."
     exit 1
