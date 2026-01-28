@@ -7,6 +7,7 @@
 #   i list cmd           - List available commands
 #   i list env           - List available env profiles
 #   i init               - Initialize .dev_env.json
+#   i migrate            - Migrate v1 config to v2 format
 #   i help               - Show this help
 
 param(
@@ -22,6 +23,7 @@ param(
 . "$PSScriptRoot\lib\i\Run.ps1"
 . "$PSScriptRoot\lib\i\Env.ps1"
 . "$PSScriptRoot\lib\i\Init.ps1"
+. "$PSScriptRoot\lib\i\Migrate.ps1"
 
 function Show-Help {
     Write-Host "i - Development environment CLI (v2)" -ForegroundColor Cyan
@@ -33,6 +35,7 @@ function Show-Help {
     Write-Host "  i list cmd           List available commands"
     Write-Host "  i list env           List available env profiles"
     Write-Host "  i init               Initialize .dev_env.json"
+    Write-Host "  i migrate            Migrate v1 config to v2"
     Write-Host "  i help               Show this help"
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
@@ -94,6 +97,10 @@ switch ($Verb) {
 
     "init" {
         Initialize-DevEnv
+    }
+
+    "migrate" {
+        Invoke-Migration
     }
 
     "help" {
