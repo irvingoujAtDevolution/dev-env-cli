@@ -8,38 +8,59 @@ function Show-EnvProfiles {
 
     $config = Get-MergedConfig
 
-    if ($config.Sources.Count -gt 0) {
-        Write-Host "Sources:" -ForegroundColor Gray
-        foreach ($src in $config.Sources) {
-            Write-Host "  $src" -ForegroundColor DarkGray
-        }
-        Write-Host ""
-    }
-
     if ($config.Env.Count -eq 0) {
         Write-Host "No env profiles found." -ForegroundColor Yellow
         Write-Host "Add 'env' section to your .dev_env.json" -ForegroundColor Gray
         return
     }
 
-    Write-Host "Env profiles:" -ForegroundColor Cyan
+    # Header
+    Write-Host ""
+    Write-Host "  ENV PROFILES" -ForegroundColor Cyan
+    Write-Host "  ------------" -ForegroundColor DarkGray
+
+    # Calculate max name length
+    $maxLen = ($config.Env.Keys | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+    $maxLen = [Math]::Max($maxLen, 8)
+
     foreach ($name in $config.Env.Keys | Sort-Object) {
         $profile = $config.Env[$name]
         $vars = $profile.PSObject.Properties | Where-Object { $_.Value -is [string] }
         $varCount = ($vars | Measure-Object).Count
+        $padding = " " * ($maxLen - $name.Length)
 
-        $suffix = if ($name -eq "default") { " (default)" } else { "" }
-        Write-Host "  $name$suffix" -ForegroundColor White -NoNewline
-        Write-Host " - $varCount vars" -ForegroundColor Gray
+        # Profile name with default indicator
+        if ($name -eq "default") {
+            Write-Host "  $name$padding  " -ForegroundColor Green -NoNewline
+            Write-Host "($varCount vars) " -ForegroundColor Gray -NoNewline
+            Write-Host "[default]" -ForegroundColor DarkGreen
+        } else {
+            Write-Host "  $name$padding  " -ForegroundColor White -NoNewline
+            Write-Host "($varCount vars)" -ForegroundColor Gray
+        }
 
+        # Show variables
+        $varPad = " " * ($maxLen + 4)
         foreach ($v in $vars) {
             $displayValue = $v.Value
-            if ($displayValue.Length -gt 40) {
-                $displayValue = $displayValue.Substring(0, 37) + "..."
+            if ($displayValue.Length -gt 35) {
+                $displayValue = $displayValue.Substring(0, 32) + "..."
             }
-            Write-Host "       $($v.Name)=$displayValue" -ForegroundColor DarkGray
+            Write-Host "$varPad" -NoNewline
+            Write-Host "$($v.Name)" -ForegroundColor DarkYellow -NoNewline
+            Write-Host "=" -ForegroundColor DarkGray -NoNewline
+            Write-Host "$displayValue" -ForegroundColor Gray
         }
     }
+
+    # Footer with sources
+    Write-Host ""
+    Write-Host "  Sources:" -ForegroundColor DarkGray
+    foreach ($src in $config.Sources) {
+        $shortSrc = $src -replace [regex]::Escape($HOME), "~"
+        Write-Host "    $shortSrc" -ForegroundColor DarkGray
+    }
+    Write-Host ""
 }
 
 function Set-EnvProfile {
@@ -59,36 +80,34 @@ function Set-EnvProfile {
 
     $config = Get-MergedConfig
 
-    if ($config.Sources.Count -gt 0) {
-        Write-Host "Sources:" -ForegroundColor Gray
-        foreach ($src in $config.Sources) {
-            Write-Host "  $src" -ForegroundColor DarkGray
-        }
-        Write-Host ""
-    }
-
     if (-not $config.Env.ContainsKey($ProfileName)) {
         Write-Host "Env profile '$ProfileName' not found." -ForegroundColor Red
         Write-Host ""
-        Write-Host "Available profiles:" -ForegroundColor Yellow
-        foreach ($name in $config.Env.Keys | Sort-Object) {
-            Write-Host "  $name" -ForegroundColor White
-        }
+        Show-EnvProfiles
         exit 1
     }
 
     $profile = $config.Env[$ProfileName]
     $setCount = 0
 
-    Write-Host "Setting env from '$ProfileName':" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Setting env: " -ForegroundColor Cyan -NoNewline
+    Write-Host "$ProfileName" -ForegroundColor White
+    Write-Host ""
+
     foreach ($prop in $profile.PSObject.Properties | Where-Object { $_.Value -is [string] }) {
         $key = $prop.Name
         $value = $prop.Value
         Set-Item -Path "env:$key" -Value $value
-        Write-Host "  $key=$value" -ForegroundColor Green
+
+        $displayValue = if ($value.Length -gt 40) { $value.Substring(0, 37) + "..." } else { $value }
+        Write-Host "  $key" -ForegroundColor Green -NoNewline
+        Write-Host "=" -ForegroundColor DarkGray -NoNewline
+        Write-Host "$displayValue" -ForegroundColor Gray
         $setCount++
     }
 
     Write-Host ""
-    Write-Host "Set $setCount environment variable(s)." -ForegroundColor Cyan
+    Write-Host "  $setCount variable(s) set." -ForegroundColor DarkGray
+    Write-Host ""
 }

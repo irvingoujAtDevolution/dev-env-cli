@@ -8,41 +8,60 @@ function Show-Commands {
 
     $config = Get-MergedConfig
 
-    if ($config.Sources.Count -gt 0) {
-        Write-Host "Sources:" -ForegroundColor Gray
-        foreach ($src in $config.Sources) {
-            Write-Host "  $src" -ForegroundColor DarkGray
-        }
-        Write-Host ""
-    }
-
     if ($config.Commands.Count -eq 0) {
         Write-Host "No commands found." -ForegroundColor Yellow
         return
     }
 
-    Write-Host "Commands:" -ForegroundColor Cyan
+    # Header
+    Write-Host ""
+    Write-Host "  COMMANDS" -ForegroundColor Cyan
+    Write-Host "  --------" -ForegroundColor DarkGray
+
+    # Calculate max name length for alignment
+    $maxLen = ($config.Commands.Keys | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+    $maxLen = [Math]::Max($maxLen, 10)
+
     foreach ($name in $config.Commands.Keys | Sort-Object) {
         $cmd = $config.Commands[$name]
+        $padding = " " * ($maxLen - $name.Length)
 
         if ($cmd -is [string]) {
-            Write-Host "  $name" -ForegroundColor White -NoNewline
-            Write-Host " -> $cmd" -ForegroundColor Gray
+            $displayCmd = if ($cmd.Length -gt 50) { $cmd.Substring(0, 47) + "..." } else { $cmd }
+            Write-Host "  $name$padding  " -ForegroundColor White -NoNewline
+            Write-Host "$displayCmd" -ForegroundColor Gray
         } else {
             $runStr = $cmd.run
-            Write-Host "  $name" -ForegroundColor White -NoNewline
-            Write-Host " -> $runStr" -ForegroundColor Gray
+            $displayCmd = if ($runStr.Length -gt 50) { $runStr.Substring(0, 47) + "..." } else { $runStr }
+            Write-Host "  $name$padding  " -ForegroundColor White -NoNewline
+            Write-Host "$displayCmd" -ForegroundColor Gray
+
+            # Show details with tree-like indent
+            $detailPad = " " * ($maxLen + 4)
             if ($cmd.cwd) {
-                Write-Host "       cwd: $($cmd.cwd)" -ForegroundColor DarkGray
+                Write-Host "$detailPad" -NoNewline
+                Write-Host "cwd: " -ForegroundColor DarkGray -NoNewline
+                Write-Host "$($cmd.cwd)" -ForegroundColor DarkYellow
             }
             if ($cmd.env) {
                 $envStr = if ($cmd.env -is [string]) { $cmd.env }
                           elseif ($cmd.env -is [array]) { $cmd.env -join ", " }
                           else { "(inline)" }
-                Write-Host "       env: $envStr" -ForegroundColor DarkGray
+                Write-Host "$detailPad" -NoNewline
+                Write-Host "env: " -ForegroundColor DarkGray -NoNewline
+                Write-Host "$envStr" -ForegroundColor DarkYellow
             }
         }
     }
+
+    # Footer with sources
+    Write-Host ""
+    Write-Host "  Sources:" -ForegroundColor DarkGray
+    foreach ($src in $config.Sources) {
+        $shortSrc = $src -replace [regex]::Escape($HOME), "~"
+        Write-Host "    $shortSrc" -ForegroundColor DarkGray
+    }
+    Write-Host ""
 }
 
 function Invoke-Command {
@@ -77,7 +96,7 @@ function Invoke-Command {
             if ($ExtraArgs -and $ExtraArgs.Count -gt 0) {
                 $fullCommand += " " + ($ExtraArgs -join ' ')
             }
-            Write-Host "Running: $fullCommand" -ForegroundColor Cyan
+            Write-Host "-> $fullCommand" -ForegroundColor DarkGray
             Invoke-Expression -Command $fullCommand
         }
         elseif ($cmd -is [pscustomobject]) {
@@ -96,7 +115,6 @@ function Invoke-Command {
                     exit 1
                 }
                 foreach ($key in $envVars.Keys) {
-                    Write-Host "  env: $key=$($envVars[$key])" -ForegroundColor DarkGray
                     Set-Item -Path "env:$key" -Value $envVars[$key]
                 }
             }
@@ -112,11 +130,7 @@ function Invoke-Command {
                 $fullCommand += " " + ($ExtraArgs -join ' ')
             }
 
-            Write-Host "Running: $fullCommand" -ForegroundColor Cyan
-            if ($cmd.cwd) {
-                Write-Host "    cwd: $(Get-Location)" -ForegroundColor DarkGray
-            }
-
+            Write-Host "-> $fullCommand" -ForegroundColor DarkGray
             Invoke-Expression -Command $fullCommand
         }
         else {
