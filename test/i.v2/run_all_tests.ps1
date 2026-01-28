@@ -15,7 +15,8 @@ $tests = @(
     "test_list.ps1",
     "test_init.ps1",
     "test_shortcuts.ps1",
-    "test_migrate.ps1"
+    "test_migrate.ps1",
+    "test_add.ps1"
 )
 
 $totalPassed = 0

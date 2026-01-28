@@ -8,6 +8,8 @@
 #   i list env           - List available env profiles
 #   i init               - Initialize .dev_env.json
 #   i migrate            - Migrate v1 config to v2 format
+#   i add env <p> K=V    - Add env profile with vars
+#   i add cmd <n> "run"  - Add command
 #   i help               - Show this help
 
 param(
@@ -24,6 +26,7 @@ param(
 . "$PSScriptRoot\lib\i\Env.ps1"
 . "$PSScriptRoot\lib\i\Init.ps1"
 . "$PSScriptRoot\lib\i\Migrate.ps1"
+. "$PSScriptRoot\lib\i\Add.ps1"
 
 function Show-Help {
     Write-Host "i - Development environment CLI (v2)" -ForegroundColor Cyan
@@ -36,6 +39,8 @@ function Show-Help {
     Write-Host "  i list env           List available env profiles"
     Write-Host "  i init               Initialize .dev_env.json"
     Write-Host "  i migrate            Migrate v1 config to v2"
+    Write-Host "  i add env <p> K=V    Add env profile with vars"
+    Write-Host "  i add cmd <n> ""run"" Add command (+ cwd= env=)"
     Write-Host "  i help               Show this help"
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
@@ -101,6 +106,32 @@ switch ($Verb) {
 
     "migrate" {
         Invoke-Migration
+    }
+
+    "add" {
+        if ($Rest.Count -eq 0) {
+            Write-Host "Usage: i add <env|cmd> ..." -ForegroundColor Red
+            Write-Host "  i add env <profile> ""KEY=VALUE"" ..." -ForegroundColor Gray
+            Write-Host "  i add cmd <name> ""<run>"" [cwd=<path>] [env=<value>]" -ForegroundColor Gray
+            exit 1
+        }
+
+        switch ($Rest[0]) {
+            "env" {
+                $profileName = if ($Rest.Count -gt 1) { $Rest[1] } else { $null }
+                $vars = if ($Rest.Count -gt 2) { $Rest[2..($Rest.Count - 1)] } else { @() }
+                Add-EnvProfile -ProfileName $profileName -Vars $vars
+            }
+            "cmd" {
+                $cmdName = if ($Rest.Count -gt 1) { $Rest[1] } else { $null }
+                $cmdArgs = if ($Rest.Count -gt 2) { $Rest[2..($Rest.Count - 1)] } else { @() }
+                Add-Command -Name $cmdName -Arguments $cmdArgs
+            }
+            default {
+                Write-Host "Unknown: '$($Rest[0])'. Use 'env' or 'cmd'." -ForegroundColor Red
+                exit 1
+            }
+        }
     }
 
     "help" {
