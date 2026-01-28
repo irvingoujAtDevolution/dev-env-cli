@@ -22,7 +22,7 @@ Write-TestResult "C1" "Runs string command" $passed "Output: $output"
 Write-Host "`nC2: Object with run" -ForegroundColor Cyan
 $output = Invoke-ICommand -WorkingDir $appDir -Arguments @("run", "with_cwd")
 # The command runs Get-Location which outputs a path table
-$passed = $output -match "Running:" -and ($output -match "C:\\" -or $output -match "C:/")
+$passed = $output -match "->" -and ($output -match "C:\\" -or $output -match "C:/")
 Write-TestResult "C2" "Runs object command with 'run' field" $passed "Output: $output"
 
 # C3: Object with cwd
