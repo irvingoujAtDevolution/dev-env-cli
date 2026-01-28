@@ -1,156 +1,130 @@
-# Run.ps1 - Quick command execution
+# Run.ps1 - Quick command execution (v2)
 
-function Get-QuickCommands {
-    $config = Get-DevEnvConfig
-    if ($null -eq $config) {
-        return @()
-    }
+function Show-Commands {
+    <#
+    .SYNOPSIS
+    List all available commands from merged config.
+    #>
 
-    if ($config.PSObject.Properties.Name -contains "quick_command" -and $config.quick_command -is [pscustomobject]) {
-        return $config.quick_command.PSObject.Properties | Where-Object {
-            $_.Value -is [string] -or $_.Value -is [pscustomobject]
+    $config = Get-MergedConfig
+
+    if ($config.Sources.Count -gt 0) {
+        Write-Host "Sources:" -ForegroundColor Gray
+        foreach ($src in $config.Sources) {
+            Write-Host "  $src" -ForegroundColor DarkGray
         }
-    }
-    return @()
-}
-
-function Show-QuickCommands {
-    $configPath = Get-DevEnvPath
-    if ($configPath) {
-        Write-Host "Config: $configPath" -ForegroundColor Gray
+        Write-Host ""
     }
 
-    $commands = Get-QuickCommands
-    if ($commands.Count -eq 0) {
-        Write-Host "No quick commands found." -ForegroundColor Yellow
+    if ($config.Commands.Count -eq 0) {
+        Write-Host "No commands found." -ForegroundColor Yellow
         return
     }
 
-    Write-Host "Available commands:" -ForegroundColor Cyan
-    foreach ($cmd in $commands) {
-        $name = $cmd.Name
-        $value = $cmd.Value
+    Write-Host "Commands:" -ForegroundColor Cyan
+    foreach ($name in $config.Commands.Keys | Sort-Object) {
+        $cmd = $config.Commands[$name]
 
-        if ($value -is [string]) {
+        if ($cmd -is [string]) {
             Write-Host "  $name" -ForegroundColor White -NoNewline
-            Write-Host " -> $value" -ForegroundColor Gray
+            Write-Host " -> $cmd" -ForegroundColor Gray
         } else {
-            $cmdStr = $value.command
-            if ($value.args) {
-                $cmdStr += " " + ($value.args -join ' ')
-            }
+            $runStr = $cmd.run
             Write-Host "  $name" -ForegroundColor White -NoNewline
-            Write-Host " -> $cmdStr" -ForegroundColor Gray
-            if ($value.cwd) {
-                Write-Host "       cwd: $($value.cwd)" -ForegroundColor DarkGray
+            Write-Host " -> $runStr" -ForegroundColor Gray
+            if ($cmd.cwd) {
+                Write-Host "       cwd: $($cmd.cwd)" -ForegroundColor DarkGray
+            }
+            if ($cmd.env) {
+                $envStr = if ($cmd.env -is [string]) { $cmd.env }
+                          elseif ($cmd.env -is [array]) { $cmd.env -join ", " }
+                          else { "(inline)" }
+                Write-Host "       env: $envStr" -ForegroundColor DarkGray
             }
         }
     }
 }
 
-function Invoke-QuickCommand {
+function Invoke-Command {
+    <#
+    .SYNOPSIS
+    Run a command by name with optional extra arguments.
+    #>
     param(
         [string]$Name,
         [string[]]$ExtraArgs
     )
 
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        Show-QuickCommands
+        Show-Commands
         return
     }
 
-    $configPath = Get-DevEnvPath
-    if ($null -eq $configPath) {
-        Write-Host "No .dev_env.json found." -ForegroundColor Red
-        exit 1
-    }
-
-    $config = Get-DevEnvConfig
-    if ($null -eq $config) {
-        Write-Host "Failed to parse config." -ForegroundColor Red
-        exit 1
-    }
-
-    if (-not ($config.PSObject.Properties.Name -contains "quick_command")) {
-        Write-Host "No quick_command section in config." -ForegroundColor Red
-        exit 1
-    }
-
-    $commands = Get-QuickCommands
-    $matchingCommand = $commands | Where-Object { $_.Name -eq $Name }
-
-    if ($null -eq $matchingCommand) {
+    $cmd = Get-Command -Name $Name
+    if ($null -eq $cmd) {
         Write-Host "Command '$Name' not found." -ForegroundColor Red
         Write-Host ""
-        Show-QuickCommands
+        Show-Commands
         exit 1
     }
 
-    $commandToRun = $matchingCommand.Value
-    $parentCwd = Get-Location
+    $originalDir = Get-Location
 
-    Invoke-CommandInternal -Command $commandToRun -ParentCwd $parentCwd -ExtraArgs $ExtraArgs
-}
-
-function Invoke-CommandInternal {
-    param(
-        [psobject]$Command,
-        [string]$ParentCwd,
-        [string[]]$ExtraArgs
-    )
-
-    if ($Command -is [string]) {
-        # Simple string command
-        $fullCommand = $Command
-        if ($ExtraArgs -and $ExtraArgs.Count -gt 0) {
-            $fullCommand += " " + ($ExtraArgs -join ' ')
-        }
-        Write-Host "Running: $fullCommand" -ForegroundColor Cyan
-        Invoke-Expression -Command $fullCommand
-    }
-    elseif ($Command -is [pscustomobject]) {
-        # Object command with cwd, command, args, env
-        $cwd = if ([string]::IsNullOrWhiteSpace($Command.cwd)) { $ParentCwd } else { $Command.cwd }
-        $cmdName = $Command.command
-        $cmdArgs = if ($Command.args) { $Command.args -join ' ' } else { "" }
-
-        $originalDir = Get-Location
-
-        # Set environment variables if specified
-        if ($null -ne $Command.env) {
-            $Command.env | ForEach-Object {
-                $key = $_.PSObject.Properties.Name
-                $value = $_.PSObject.Properties.Value
-                Write-Host "  env: $key=$value" -ForegroundColor DarkGray
-                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+    try {
+        if ($cmd -is [string]) {
+            # Simple string command
+            $fullCommand = $cmd
+            if ($ExtraArgs -and $ExtraArgs.Count -gt 0) {
+                $fullCommand += " " + ($ExtraArgs -join ' ')
             }
-        }
-
-        # Change directory if specified
-        if (-not [string]::IsNullOrWhiteSpace($cwd)) {
-            Set-Location -Path $cwd
-        }
-
-        # Build full command
-        $fullCommand = "$cmdName $cmdArgs".Trim()
-        if ($ExtraArgs -and $ExtraArgs.Count -gt 0) {
-            $fullCommand += " " + ($ExtraArgs -join ' ')
-        }
-
-        Write-Host "Running: $fullCommand" -ForegroundColor Cyan
-        if ($cwd -ne $ParentCwd) {
-            Write-Host "    cwd: $(Get-Location)" -ForegroundColor DarkGray
-        }
-
-        try {
+            Write-Host "Running: $fullCommand" -ForegroundColor Cyan
             Invoke-Expression -Command $fullCommand
         }
-        finally {
-            Set-Location -Path $originalDir
+        elseif ($cmd -is [pscustomobject]) {
+            # Object command with run, cwd, env
+            $runCmd = $cmd.run
+            if (-not $runCmd) {
+                Write-Host "Command '$Name' has no 'run' field." -ForegroundColor Red
+                exit 1
+            }
+
+            # Resolve and set env vars
+            if ($cmd.env) {
+                $envVars = Resolve-EnvVars -EnvSpec $cmd.env
+                if ($null -eq $envVars) {
+                    # Error already printed
+                    exit 1
+                }
+                foreach ($key in $envVars.Keys) {
+                    Write-Host "  env: $key=$($envVars[$key])" -ForegroundColor DarkGray
+                    Set-Item -Path "env:$key" -Value $envVars[$key]
+                }
+            }
+
+            # Change directory if specified
+            if ($cmd.cwd -and -not [string]::IsNullOrWhiteSpace($cmd.cwd)) {
+                Set-Location -Path $cmd.cwd
+            }
+
+            # Build full command
+            $fullCommand = $runCmd
+            if ($ExtraArgs -and $ExtraArgs.Count -gt 0) {
+                $fullCommand += " " + ($ExtraArgs -join ' ')
+            }
+
+            Write-Host "Running: $fullCommand" -ForegroundColor Cyan
+            if ($cmd.cwd) {
+                Write-Host "    cwd: $(Get-Location)" -ForegroundColor DarkGray
+            }
+
+            Invoke-Expression -Command $fullCommand
+        }
+        else {
+            Write-Host "Unknown command format for '$Name'." -ForegroundColor Red
+            exit 1
         }
     }
-    else {
-        Write-Host "Unrecognized command format." -ForegroundColor Red
-        exit 1
+    finally {
+        Set-Location -Path $originalDir
     }
 }

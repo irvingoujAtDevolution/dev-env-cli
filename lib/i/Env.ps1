@@ -1,51 +1,37 @@
-# Env.ps1 - Environment variable management
+# Env.ps1 - Environment profile management (v2)
 
-function Get-EnvConfigs {
-    $configPath = Get-DevEnvPath
-    if ($configPath) {
-        Write-Host "Config: $configPath" -ForegroundColor Gray
+function Show-EnvProfiles {
+    <#
+    .SYNOPSIS
+    List all available env profiles from merged config.
+    #>
+
+    $config = Get-MergedConfig
+
+    if ($config.Sources.Count -gt 0) {
+        Write-Host "Sources:" -ForegroundColor Gray
+        foreach ($src in $config.Sources) {
+            Write-Host "  $src" -ForegroundColor DarkGray
+        }
+        Write-Host ""
     }
 
-    $config = Get-DevEnvConfig
-    if ($null -eq $config) {
-        Write-Host "No config found." -ForegroundColor Yellow
-        return @()
-    }
-
-    # Find all temp_env* properties
-    $envConfigs = $config.PSObject.Properties | Where-Object {
-        $_.Name -match "^temp_env(_\d+)?$" -and $_.Value -is [pscustomobject]
-    }
-
-    return $envConfigs
-}
-
-function Show-EnvConfigs {
-    $configs = Get-EnvConfigs
-
-    if ($configs.Count -eq 0) {
-        Write-Host "No environment configs found." -ForegroundColor Yellow
-        Write-Host "Add 'temp_env' or 'temp_env_N' to your .dev_env.json" -ForegroundColor Gray
+    if ($config.Env.Count -eq 0) {
+        Write-Host "No env profiles found." -ForegroundColor Yellow
+        Write-Host "Add 'env' section to your .dev_env.json" -ForegroundColor Gray
         return
     }
 
-    Write-Host "Available env configs:" -ForegroundColor Cyan
-    foreach ($cfg in $configs) {
-        $name = $cfg.Name
-        $vars = $cfg.Value.PSObject.Properties | Where-Object { $_.Value -is [string] }
+    Write-Host "Env profiles:" -ForegroundColor Cyan
+    foreach ($name in $config.Env.Keys | Sort-Object) {
+        $profile = $config.Env[$name]
+        $vars = $profile.PSObject.Properties | Where-Object { $_.Value -is [string] }
         $varCount = ($vars | Measure-Object).Count
 
-        # Extract number if present
-        if ($name -eq "temp_env") {
-            Write-Host "  env" -ForegroundColor White -NoNewline
-            Write-Host " (default) - $varCount vars" -ForegroundColor Gray
-        } else {
-            $num = $name -replace "temp_env_", ""
-            Write-Host "  env $num" -ForegroundColor White -NoNewline
-            Write-Host " - $varCount vars" -ForegroundColor Gray
-        }
+        $suffix = if ($name -eq "default") { " (default)" } else { "" }
+        Write-Host "  $name$suffix" -ForegroundColor White -NoNewline
+        Write-Host " - $varCount vars" -ForegroundColor Gray
 
-        # Show variables
         foreach ($v in $vars) {
             $displayValue = $v.Value
             if ($displayValue.Length -gt 40) {
@@ -56,58 +42,53 @@ function Show-EnvConfigs {
     }
 }
 
-function Set-DevEnv {
+function Set-EnvProfile {
+    <#
+    .SYNOPSIS
+    Set environment variables from a named profile.
+    Defaults to 'default' profile if no name given.
+    #>
     param(
-        [string]$Number
+        [string]$ProfileName
     )
 
-    # Get all config files recursively (layered approach)
-    $configFiles = @(Get-DevEnvPath -Recursive) | Where-Object {
-        -not [string]::IsNullOrWhiteSpace($_)
-    } | Sort-Object { $_.Length }
+    # Default to 'default' profile
+    if ([string]::IsNullOrWhiteSpace($ProfileName)) {
+        $ProfileName = "default"
+    }
 
-    if ($null -eq $configFiles -or $configFiles.Count -eq 0) {
-        Write-Host "No .dev_env.json found." -ForegroundColor Red
+    $config = Get-MergedConfig
+
+    if ($config.Sources.Count -gt 0) {
+        Write-Host "Sources:" -ForegroundColor Gray
+        foreach ($src in $config.Sources) {
+            Write-Host "  $src" -ForegroundColor DarkGray
+        }
+        Write-Host ""
+    }
+
+    if (-not $config.Env.ContainsKey($ProfileName)) {
+        Write-Host "Env profile '$ProfileName' not found." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Available profiles:" -ForegroundColor Yellow
+        foreach ($name in $config.Env.Keys | Sort-Object) {
+            Write-Host "  $name" -ForegroundColor White
+        }
         exit 1
     }
 
-    $envAttributeName = if ($Number) { "temp_env_$Number" } else { "temp_env" }
+    $profile = $config.Env[$ProfileName]
     $setCount = 0
 
-    foreach ($path in $configFiles) {
-        if (-not (Test-Path $path)) {
-            continue
-        }
-
-        try {
-            $config = Get-Content -Raw -Path $path | ConvertFrom-Json
-        }
-        catch {
-            Write-Warning "Failed to parse $path"
-            continue
-        }
-
-        if ($config.PSObject.Properties.Name -contains $envAttributeName -and
-            $config.$envAttributeName -is [pscustomobject]) {
-
-            Write-Host "From: $path" -ForegroundColor Gray
-
-            foreach ($attr in $config.$envAttributeName.PSObject.Properties | Where-Object { $_.Value -is [string] }) {
-                $key = $attr.Name
-                $value = $attr.Value
-
-                # Set environment variable
-                Set-Item -Path "env:$key" -Value $value
-                Write-Host "  $key=$value" -ForegroundColor Green
-                $setCount++
-            }
-        }
+    Write-Host "Setting env from '$ProfileName':" -ForegroundColor Cyan
+    foreach ($prop in $profile.PSObject.Properties | Where-Object { $_.Value -is [string] }) {
+        $key = $prop.Name
+        $value = $prop.Value
+        Set-Item -Path "env:$key" -Value $value
+        Write-Host "  $key=$value" -ForegroundColor Green
+        $setCount++
     }
 
-    if ($setCount -eq 0) {
-        Write-Host "No '$envAttributeName' found in any config." -ForegroundColor Yellow
-    } else {
-        Write-Host ""
-        Write-Host "Set $setCount environment variable(s)." -ForegroundColor Cyan
-    }
+    Write-Host ""
+    Write-Host "Set $setCount environment variable(s)." -ForegroundColor Cyan
 }
